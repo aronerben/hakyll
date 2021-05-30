@@ -18,19 +18,10 @@ import Control.Exception (
   handle,
   throw,
  )
-import Control.Monad (forM_, forever, void, when)
-#ifdef mingw32_HOST_OS
-import           Control.Concurrent             (threadDelay)
-import           Control.Exception              (IOException, throw, try)
-import           System.Directory               (doesFileExist)
-import           System.Exit                    (exitFailure)
-import           System.FilePath                ((</>))
-import           System.IO                      (Handle, IOMode (ReadMode),
-                                                 hClose, openFile)
-import           System.IO.Error                (isPermissionError)
-#endif
-
+import Control.Monad (forever, void, when)
 --------------------------------------------------------------------------------
+
+import Data.List (isPrefixOf)
 import Hakyll.Core.Configuration
 import Hakyll.Core.Identifier
 import Hakyll.Core.Identifier.Pattern
@@ -43,9 +34,7 @@ import System.FilePath (pathSeparators)
 -- | A thread that watches for updates in a 'providerDirectory' and recompiles
 -- a site as soon as any changes occur
 watchUpdates :: Configuration -> [FilePath] -> IO Pattern -> IO ()
-watchUpdates conf excluded update = do
-  -- TODO [aerben] use it properly
-  forM_ excluded print
+watchUpdates conf excludedDirs update = do
   let providerDir = providerDirectory conf
   shouldBuild <- newEmptyMVar
   pattern <- update
@@ -60,9 +49,9 @@ watchUpdates conf excluded update = do
               dropWhile (`elem` pathSeparators) $
                 drop (length fullProviderDir) path
             identifier = fromFilePath relative
-        print path
+            isExcluded = any (`isPrefixOf` relative) excludedDirs
 
-        shouldIgnore <- shouldIgnoreFile conf path
+        shouldIgnore <- (|| isExcluded) <$> shouldIgnoreFile conf path
         return $ not shouldIgnore && matches pattern identifier
 
   -- This thread continually watches the `shouldBuild` MVar and builds
@@ -80,41 +69,11 @@ watchUpdates conf excluded update = do
   -- Send an event whenever something occurs so that the thread described
   -- above will do a build.
   void $
-    -- TODO [aerben] exclude here
     FSNotify.watchTree manager providerDir (not . isRemove) $ \event -> do
       allowed' <- allowed event
       when allowed' $ void $ tryPutMVar shouldBuild event
   where
-
-#ifndef mingw32_HOST_OS
-    update' _     _        = void update
-#else
-    update' event provider = do
-        let path = provider </> FSNotify.eventPath event
-        -- on windows, a 'Modified' event is also sent on file deletion
-        fileExists <- doesFileExist path
-
-        when fileExists . void $ waitOpen path ReadMode (\_ -> update) 10
-
-    -- continuously attempts to open the file in between sleep intervals
-    -- handler is run only once it is able to open the file
-    waitOpen :: FilePath -> IOMode -> (Handle -> IO r) -> Integer -> IO r
-    waitOpen _    _    _       0 = do
-        putStrLn "[ERROR] Failed to retrieve modified file for regeneration"
-        exitFailure
-    waitOpen path mode handler retries = do
-        res <- try $ openFile path mode :: IO (Either IOException Handle)
-        case res of
-            Left ex -> if isPermissionError ex
-                       then do
-                           threadDelay 100000
-                           waitOpen path mode handler (retries - 1)
-                       else throw ex
-            Right h -> do
-                handled <- handler h
-                hClose h
-                return handled
-#endif
+    update' _ _ = void update
 
 --------------------------------------------------------------------------------
 isRemove :: FSNotify.Event -> Bool

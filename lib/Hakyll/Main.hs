@@ -27,23 +27,18 @@ module Hakyll.Main (
 
 --------------------------------------------------------------------------------
 
-import Control.Applicative ((<|>))
-import Control.Monad.Identity (Identity)
-import Data.Bifunctor (first)
-import Data.Monoid ((<>))
 import qualified Hakyll.Check as Check
 import qualified Hakyll.Commands as Commands
 import qualified Hakyll.Core.Configuration as Config
 import qualified Hakyll.Core.Logger as Logger
 import Hakyll.Core.Rules
+import Hakyll.Core.Util.Parser (directories)
 import qualified Options.Applicative as OA
 import System.Environment (getProgName)
 import System.Exit (ExitCode (ExitSuccess), exitWith)
 import System.FilePath (isValid)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Text.Parsec as P
-import qualified Text.Parsec.Char as PC
-import qualified Text.Parsec.Combinator as PCO
 import Text.Printf (printf)
 
 --------------------------------------------------------------------------------
@@ -173,7 +168,7 @@ directoriesParser :: OA.ReadM [FilePath]
 directoriesParser =
   OA.eitherReader
     ( \str ->
-        case parse str of
+        case P.parse directories "" str of
           Left _ -> Left $ printf "cannot parse value '%s'" str
           Right dirs ->
             mapM
@@ -184,19 +179,6 @@ directoriesParser =
               )
               dirs
     )
-  where
-    parse =
-      P.parse
-        ( PCO.between
-            (PC.char '{')
-            (PC.char '}')
-            ( PCO.many1 (PC.satisfy (\ch -> ch /= ',' && ch /= '}'))
-                `PCO.sepBy` PC.char ','
-            )
-            <* PCO.eof
-            <|> PCO.many1 PC.anyChar `PCO.sepBy` PC.char ','
-        )
-        ""
 
 commandParser :: Config.Configuration -> OA.Parser Command
 commandParser conf = OA.subparser $ foldr ((<>) . produceCommand) mempty commands

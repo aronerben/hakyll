@@ -92,9 +92,9 @@ preview _ _ _ _ = previewServerDisabled
 
 watch :: Configuration -> Logger -> String -> Int -> Bool -> [FilePath] -> Rules a -> IO ()
 #ifdef WATCH_SERVER
-watch conf logger host port runServer excluded rules = do
+watch conf logger host port runServer excludedDirs rules = do
 #ifndef mingw32_HOST_OS
-    _ <- forkIO $ watchUpdates conf excluded update
+    _ <- forkIO $ watchUpdates conf excludedDirs update
 #else
     -- Force windows users to compile with -threaded flag, as otherwise
     -- thread is blocked indefinitely.
