@@ -77,7 +77,7 @@ preview :: Configuration -> Logger -> Rules a -> Int -> IO ()
 #ifdef PREVIEW_SERVER
 preview conf logger rules port  = do
     deprecatedMessage
-    watch conf logger "0.0.0.0" port True rules
+    watch conf logger "0.0.0.0" port True [] rules
   where
     deprecatedMessage = mapM_ putStrLn [ "The preview command has been deprecated."
                                        , "Use the watch command for recompilation and serving."
@@ -90,11 +90,11 @@ preview _ _ _ _ = previewServerDisabled
 --------------------------------------------------------------------------------
 -- | Watch and recompile for changes
 
-watch :: Configuration -> Logger -> String -> Int -> Bool -> Rules a -> IO ()
+watch :: Configuration -> Logger -> String -> Int -> Bool -> [FilePath] -> Rules a -> IO ()
 #ifdef WATCH_SERVER
-watch conf logger host port runServer rules = do
+watch conf logger host port runServer excluded rules = do
 #ifndef mingw32_HOST_OS
-    _ <- forkIO $ watchUpdates conf update
+    _ <- forkIO $ watchUpdates conf excluded update
 #else
     -- Force windows users to compile with -threaded flag, as otherwise
     -- thread is blocked indefinitely.
