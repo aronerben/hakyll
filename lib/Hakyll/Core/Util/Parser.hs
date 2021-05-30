@@ -1,11 +1,9 @@
 --------------------------------------------------------------------------------
-
 -- | Parser utilities
 module Hakyll.Core.Util.Parser
     ( metadataKey
     , directories
-    )
-where
+    ) where
 
 --------------------------------------------------------------------------------
 import           Control.Applicative    ((<|>))
@@ -28,9 +26,11 @@ metadataKey = do
     i <- (:) <$> P.letter <*> P.many (P.alphaNum <|> P.oneOf "_." <|> hyphon)
     if i `elem` reservedKeys then mzero else return i
 
+
 --------------------------------------------------------------------------------
 reservedKeys :: [String]
 reservedKeys = ["if", "else", "endif", "for", "sep", "endfor", "partial"]
+
 
 --------------------------------------------------------------------------------
 directories :: Parser [FilePath]
